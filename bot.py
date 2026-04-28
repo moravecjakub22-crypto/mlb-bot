@@ -21,7 +21,7 @@ odds_data = []
 odds_update_time = 0
 
 
-# --- TELEGRAM (BEZ ASYNC, STABILNÍ) ---
+# --- TELEGRAM (STABILNÍ) ---
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {
@@ -41,9 +41,6 @@ def main():
     while True:
         print("BOT JEDE")
 
-        # 🔥 TEST (klidně smaž později)
-        send_telegram("TEST – bot běží")
-
         try:
             schedule = requests.get(
                 "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
@@ -51,7 +48,7 @@ def main():
             ).json()
 
             if not schedule["dates"]:
-                time.sleep(10)
+                time.sleep(180)
                 continue
 
             games = schedule["dates"][0]["games"]
@@ -177,7 +174,7 @@ def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        time.sleep(10)  # 🔥 test interval (změň později na 180)
+        time.sleep(180)  # 🔥 produkční interval (3 min)
 
 
 # --- START ---
