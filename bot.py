@@ -32,6 +32,8 @@ async def main():
     while True:
         print("BOT JEDE")
 
+		await bot.send_message(chat_id=CHAT_ID, text="TEST – bot běží")
+
         try:
             schedule = requests.get(
                 "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
