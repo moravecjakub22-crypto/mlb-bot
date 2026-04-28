@@ -1,3 +1,4 @@
+
 from flask import Flask
 import threading
 import requests
@@ -32,16 +33,17 @@ async def main():
     while True:
         print("BOT JEDE")
 
-		await bot.send_message(chat_id=CHAT_ID, text="TEST – bot běží")
+        # 🔥 TEST – každých 10s pošle zprávu
+        await bot.send_message(chat_id=CHAT_ID, text="TEST – bot běží")
 
         try:
             schedule = requests.get(
                 "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
-		timeout=10
+                timeout=10
             ).json()
 
             if not schedule["dates"]:
-                await asyncio.sleep(180)
+                await asyncio.sleep(10)
                 continue
 
             games = schedule["dates"][0]["games"]
@@ -51,7 +53,7 @@ async def main():
 
                 live = requests.get(
                     f"https://statsapi.mlb.com/api/v1.1/game/{game_id}/feed/live",
-		timeout=10
+                    timeout=10
                 ).json()
 
                 try:
@@ -66,8 +68,8 @@ async def main():
                             print("🔄 Aktualizuji odds...")
                             try:
                                 odds_data = requests.get(
-                                    f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/ apiKey={ODDS_API_KEY}&regions=eu&markets=totals",
-				timeout=10
+                                    f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey={ODDS_API_KEY}&regions=eu&markets=totals",
+                                    timeout=10
                                 ).json()
                             except:
                                 odds_data = []
@@ -170,7 +172,7 @@ async def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        await asyncio.sleep(180)
+        await asyncio.sleep(10)  # 🔥 TEST interval
 
 
 # --- FIX PRO RENDER (ASYNC LOOP) ---
