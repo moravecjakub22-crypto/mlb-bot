@@ -1,10 +1,7 @@
-
 from flask import Flask
 import threading
 import requests
 import time
-import asyncio
-from telegram import Bot
 
 # --- FLASK (aby Render viděl port) ---
 app = Flask(__name__)
@@ -14,27 +11,38 @@ def home():
     return "Bot běží"
 
 
-# --- TELEGRAM + API ---
+# --- API KLÍČE ---
 TOKEN = "8756274427:AAF2Jtbdc9V06tni871RweFT0dRMae8KXdg"
 CHAT_ID = "5104285814"
 ODDS_API_KEY = "7af756cdb9d6a15a834fa754bdefb245"
-
-bot = Bot(token=TOKEN)
 
 sent_games = set()
 odds_data = []
 odds_update_time = 0
 
 
+# --- TELEGRAM (BEZ ASYNC, STABILNÍ) ---
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {
+        "chat_id": CHAT_ID,
+        "text": message
+    }
+    try:
+        requests.post(url, data=data, timeout=10)
+    except Exception as e:
+        print("TELEGRAM ERROR:", e)
+
+
 # --- HLAVNÍ BOT ---
-async def main():
+def main():
     global odds_data, odds_update_time
 
     while True:
         print("BOT JEDE")
 
-        # 🔥 TEST – každých 10s pošle zprávu
-        await bot.send_message(chat_id=CHAT_ID, text="TEST – bot běží")
+        # 🔥 TEST (klidně smaž později)
+        send_telegram("TEST – bot běží")
 
         try:
             schedule = requests.get(
@@ -43,7 +51,7 @@ async def main():
             ).json()
 
             if not schedule["dates"]:
-                await asyncio.sleep(10)
+                time.sleep(10)
                 continue
 
             games = schedule["dates"][0]["games"]
@@ -146,22 +154,19 @@ async def main():
                         and (best_over_odds is None or best_over_odds >= 1.7)
                         and game_id not in sent_games
                     ):
-                        await bot.send_message(
-                            chat_id=CHAT_ID,
-                            text=(
-                                f"🔥 OVER VALUE BET\n\n"
-                                f"{away} vs {home}\n"
-                                f"Score: {away_score} - {home_score}\n"
-                                f"Inning: {inning}\n\n"
-                                f"Line: {best_line if best_line else 'N/A'}\n"
-                                f"Odds: {best_over_odds if best_over_odds else 'N/A'}\n\n"
-                                f"LOB: {away_lob} - {home_lob}\n"
-                                f"Traffic: {away_traffic} - {home_traffic}\n"
-                                f"Pitch: {away_pitch_count} - {home_pitch_count}\n"
-                                f"Bullpen: YES\n"
-                                f"🔥 Pressure: {pressure_team}\n\n"
-                                f"💣 TLAK + UNAVA + BULLPEN → OVER"
-                            )
+                        send_telegram(
+                            f"🔥 OVER VALUE BET\n\n"
+                            f"{away} vs {home}\n"
+                            f"Score: {away_score} - {home_score}\n"
+                            f"Inning: {inning}\n\n"
+                            f"Line: {best_line if best_line else 'N/A'}\n"
+                            f"Odds: {best_over_odds if best_over_odds else 'N/A'}\n\n"
+                            f"LOB: {away_lob} - {home_lob}\n"
+                            f"Traffic: {away_traffic} - {home_traffic}\n"
+                            f"Pitch: {away_pitch_count} - {home_pitch_count}\n"
+                            f"Bullpen: YES\n"
+                            f"🔥 Pressure: {pressure_team}\n\n"
+                            f"💣 TLAK + UNAVA + BULLPEN → OVER"
                         )
 
                         sent_games.add(game_id)
@@ -172,20 +177,9 @@ async def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        await asyncio.sleep(10)  # 🔥 TEST interval
-
-
-# --- FIX PRO RENDER (ASYNC LOOP) ---
-def start_async_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(main())
-
-
-def run_web():
-    app.run(host="0.0.0.0", port=10000)
+        time.sleep(10)  # 🔥 test interval (změň později na 180)
 
 
 # --- START ---
-threading.Thread(target=run_web).start()
-threading.Thread(target=start_async_loop).start()
+threading.Thread(target=main).start()
+app.run(host="0.0.0.0", port=10000)
