@@ -26,6 +26,8 @@ async def main():
     global odds_data, odds_update_time
 
     while True:
+        print("BOT JEDE")
+        
         schedule = requests.get("https://statsapi.mlb.com/api/v1/schedule?sportId=1").json()
 
         if not schedule["dates"]:
