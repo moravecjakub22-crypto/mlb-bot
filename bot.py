@@ -3,7 +3,7 @@ import threading
 import requests
 import time
 
-# --- FLASK (aby Render viděl port) ---
+# --- FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -21,7 +21,7 @@ odds_data = []
 odds_update_time = 0
 
 
-# --- TELEGRAM (STABILNÍ) ---
+# --- TELEGRAM ---
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {
@@ -67,19 +67,6 @@ def main():
 
                     inning = linescore["currentInning"]
 
-                    # --- ODDS UPDATE ---
-                    if 4 <= inning <= 5:
-                        if time.time() - odds_update_time > 900:
-                            print("🔄 Aktualizuji odds...")
-                            try:
-                                odds_data = requests.get(
-                                    f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey={ODDS_API_KEY}&regions=eu&markets=totals",
-                                    timeout=10
-                                ).json()
-                            except:
-                                odds_data = []
-                            odds_update_time = time.time()
-
                     home = live["gameData"]["teams"]["home"]["name"]
                     away = live["gameData"]["teams"]["away"]["name"]
 
@@ -117,53 +104,46 @@ def main():
                     home_bullpen = len(home_pitchers) > 1
                     away_bullpen = len(away_pitchers) > 1
 
-                    # --- ODDS ---
-                    best_over_odds = None
-                    best_line = None
+                    # --- SCORING ---
+                    score = 0
 
-                    if odds_data:
-                        for match in odds_data:
-                            if home in match["home_team"] or away in match["away_team"]:
-                                for bookmaker in match["bookmakers"]:
-                                    for market in bookmaker["markets"]:
-                                        if market["key"] == "totals":
-                                            for outcome in market["outcomes"]:
-                                                if outcome["name"] == "Over":
-                                                    line = outcome["point"]
-                                                    odds = outcome["price"]
+                    if 4 <= inning <= 6:
+                        score += 1
 
-                                                    if 6.5 <= line <= 8.5:
-                                                        if best_over_odds is None or odds > best_over_odds:
-                                                            best_over_odds = odds
-                                                            best_line = line
+                    if total_runs <= 5:
+                        score += 1
 
-                    pressure_team = away if away_traffic > home_traffic else home
+                    if abs(home_score - away_score) <= 4:
+                        score += 1
 
-                    # --- STRATEGIE ---
-                    if (
-                        4 <= inning <= 5
-                        and total_runs <= 4
-                        and abs(home_score - away_score) <= 3
-                        and (home_lob >= 3 and home_traffic >= 6)
-                        and (away_lob >= 2 and away_traffic >= 4)
-                        and (home_pitch_count >= 60 or away_pitch_count >= 60)
-                        and (home_bullpen or away_bullpen)
-                        and (best_over_odds is None or best_over_odds >= 1.7)
-                        and game_id not in sent_games
-                    ):
+                    if home_traffic >= 5:
+                        score += 2
+
+                    if away_traffic >= 5:
+                        score += 2
+
+                    if home_pitch_count >= 60:
+                        score += 1
+
+                    if away_pitch_count >= 60:
+                        score += 1
+
+                    if home_bullpen:
+                        score += 1
+
+                    if away_bullpen:
+                        score += 1
+
+                    # --- SIGNAL ---
+                    if score >= 5 and game_id not in sent_games:
                         send_telegram(
-                            f"🔥 OVER VALUE BET\n\n"
+                            f"🔥 OVER SIGNAL (Score: {score})\n\n"
                             f"{away} vs {home}\n"
                             f"Score: {away_score} - {home_score}\n"
                             f"Inning: {inning}\n\n"
-                            f"Line: {best_line if best_line else 'N/A'}\n"
-                            f"Odds: {best_over_odds if best_over_odds else 'N/A'}\n\n"
-                            f"LOB: {away_lob} - {home_lob}\n"
                             f"Traffic: {away_traffic} - {home_traffic}\n"
                             f"Pitch: {away_pitch_count} - {home_pitch_count}\n"
                             f"Bullpen: YES\n"
-                            f"🔥 Pressure: {pressure_team}\n\n"
-                            f"💣 TLAK + UNAVA + BULLPEN → OVER"
                         )
 
                         sent_games.add(game_id)
@@ -174,7 +154,7 @@ def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        time.sleep(180)  # 🔥 produkční interval (3 min)
+        time.sleep(180)
 
 
 # --- START ---
