@@ -14,11 +14,8 @@ def home():
 # --- API KLÍČE ---
 TOKEN = "8756274427:AAF2Jtbdc9V06tni871RweFT0dRMae8KXdg"
 CHAT_ID = "5104285814"
-ODDS_API_KEY = "7af756cdb9d6a15a834fa754bdefb245"
 
 sent_games = set()
-odds_data = []
-odds_update_time = 0
 
 
 # --- TELEGRAM ---
@@ -36,8 +33,6 @@ def send_telegram(message):
 
 # --- HLAVNÍ BOT ---
 def main():
-    global odds_data, odds_update_time
-
     while True:
         print("BOT JEDE")
 
@@ -62,10 +57,19 @@ def main():
                 ).json()
 
                 try:
+                    # --- STATUS (jen live zápasy) ---
+                    status = live["gameData"]["status"]["abstractGameState"]
+                    if status != "Live":
+                        continue
+
                     linescore = live["liveData"]["linescore"]
                     boxscore = live["liveData"]["boxscore"]
 
                     inning = linescore["currentInning"]
+
+                    # ❗ TVRDÝ FILTR NA INNING
+                    if inning < 4 or inning > 6:
+                        continue
 
                     home = live["gameData"]["teams"]["home"]["name"]
                     away = live["gameData"]["teams"]["away"]["name"]
@@ -80,9 +84,6 @@ def main():
 
                     home_bb = boxscore["teams"]["home"]["teamStats"]["batting"]["baseOnBalls"]
                     away_bb = boxscore["teams"]["away"]["teamStats"]["batting"]["baseOnBalls"]
-
-                    home_lob = linescore["teams"]["home"]["leftOnBase"]
-                    away_lob = linescore["teams"]["away"]["leftOnBase"]
 
                     home_traffic = home_hits + home_bb
                     away_traffic = away_hits + away_bb
@@ -106,9 +107,6 @@ def main():
 
                     # --- SCORING ---
                     score = 0
-
-                    if 4 <= inning <= 6:
-                        score += 1
 
                     if total_runs <= 5:
                         score += 1
@@ -134,7 +132,7 @@ def main():
                     if away_bullpen:
                         score += 1
 
-                    # 👉 DEBUG
+                    # --- DEBUG ---
                     print(f"{away} vs {home} | inning {inning} | score {score}")
 
                     # --- SIGNAL ---
