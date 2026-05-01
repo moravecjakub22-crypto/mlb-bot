@@ -134,6 +134,9 @@ def main():
                     if away_bullpen:
                         score += 1
 
+                    # 👉 DEBUG
+                    print(f"{away} vs {home} | inning {inning} | score {score}")
+
                     # --- SIGNAL ---
                     if score >= 5 and game_id not in sent_games:
                         send_telegram(
