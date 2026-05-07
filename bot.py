@@ -3,9 +3,7 @@ import threading
 import requests
 import time
 
-print("NOVA VERZE BOTU")  # 👈 SEM TO DEJ
-
-# --- FLASK (aby Render běžel) ---
+# --- FLASK (aby Render viděl port) ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -13,7 +11,7 @@ def home():
     return "Bot běží"
 
 
-# --- API ---
+# --- API KLÍČE ---
 TOKEN = "8756274427:AAF2Jtbdc9V06tni871RweFT0dRMae8KXdg"
 CHAT_ID = "5104285814"
 
@@ -39,23 +37,17 @@ def main():
         print("BOT JEDE")
 
         try:
-            # 🔥 můžeš dát konkrétní datum pro test:
-            # url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2026-05-02"
+            schedule = requests.get(
+                "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
+                timeout=10
+            ).json()
 
-            url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1"
-
-            schedule = requests.get(url, timeout=10).json()
-
-            print("DATES:", schedule.get("dates"))
-
-            if not schedule.get("dates"):
-                print("❌ Žádné zápasy")
+            if not schedule["dates"]:
+                print("Žádné zápasy dnes")
                 time.sleep(180)
                 continue
 
             games = schedule["dates"][0]["games"]
-
-            print(f"📊 Počet zápasů: {len(games)}")
 
             for game in games:
                 game_id = game["gamePk"]
@@ -66,15 +58,17 @@ def main():
                 ).json()
 
                 try:
-                    # 👉 FILTR NA LIVE
                     status = live["gameData"]["status"]["abstractGameState"]
-                    if status != "Live":
+                    print("STATUS:", status)
+
+                    # 🔥 POVOLÍME LIVE + IN PROGRESS
+                    if status not in ["Live", "In Progress"]:
                         continue
 
                     linescore = live["liveData"]["linescore"]
                     boxscore = live["liveData"]["boxscore"]
 
-                    inning = linescore["currentInning"]
+                    inning = linescore.get("currentInning", 0)
 
                     home = live["gameData"]["teams"]["home"]["name"]
                     away = live["gameData"]["teams"]["away"]["name"]
@@ -89,9 +83,6 @@ def main():
 
                     home_bb = boxscore["teams"]["home"]["teamStats"]["batting"]["baseOnBalls"]
                     away_bb = boxscore["teams"]["away"]["teamStats"]["batting"]["baseOnBalls"]
-
-                    home_lob = linescore["teams"]["home"]["leftOnBase"]
-                    away_lob = linescore["teams"]["away"]["leftOnBase"]
 
                     home_traffic = home_hits + home_bb
                     away_traffic = away_hits + away_bb
@@ -116,19 +107,19 @@ def main():
                     # --- SCORING ---
                     score = 0
 
-                    if 4 <= inning <= 6:
+                    if 4 <= inning <= 7:
                         score += 1
 
-                    if total_runs <= 5:
+                    if total_runs <= 6:
                         score += 1
 
                     if abs(home_score - away_score) <= 4:
                         score += 1
 
-                    if home_traffic >= 5:
+                    if home_traffic >= 4:
                         score += 2
 
-                    if away_traffic >= 5:
+                    if away_traffic >= 4:
                         score += 2
 
                     if home_pitch_count >= 60:
@@ -143,11 +134,11 @@ def main():
                     if away_bullpen:
                         score += 1
 
-                    # 👉 DEBUG (nejdůležitější)
+                    # 🔍 DEBUG
                     print(f"{away} vs {home} | inning {inning} | score {score}")
 
                     # --- SIGNAL ---
-                    if score >= 4 and game_id not in sent_games:
+                    if score >= 5 and game_id not in sent_games:
                         send_telegram(
                             f"🔥 OVER SIGNAL (Score: {score})\n\n"
                             f"{away} vs {home}\n"
@@ -166,7 +157,7 @@ def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        time.sleep(180)
+        time.sleep(120)  # ⏱️ rychlejší test
 
 
 # --- START ---
