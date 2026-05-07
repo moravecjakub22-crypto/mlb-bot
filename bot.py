@@ -42,7 +42,6 @@ def main():
                 timeout=10
             ).json()
 
-            # 🔍 DEBUG
             print("DATES:", len(schedule.get("dates", [])))
 
             if not schedule.get("dates"):
@@ -50,7 +49,7 @@ def main():
                 time.sleep(120)
                 continue
 
-            # 🔥 vezmeme VŠECHNY zápasy
+            # 🔥 všechny zápasy
             games = []
             for date in schedule["dates"]:
                 for game in date["games"]:
@@ -70,7 +69,6 @@ def main():
                     status = live["gameData"]["status"]["abstractGameState"]
                     print("STATUS:", status)
 
-                    # 🔥 LIVE + IN PROGRESS
                     if status not in ["Live", "In Progress"]:
                         continue
 
@@ -113,28 +111,28 @@ def main():
                     home_bullpen = len(home_pitchers) > 1
                     away_bullpen = len(away_pitchers) > 1
 
-                    # --- SCORING ---
+                    # 🔥 SCORING (vylepšený)
                     score = 0
 
-                    if 4 <= inning <= 7:
-                        score += 1
-
-                    if total_runs <= 6:
-                        score += 1
-
-                    if abs(home_score - away_score) <= 4:
-                        score += 1
-
-                    if home_traffic >= 4:
+                    if 5 <= inning <= 7:
                         score += 2
 
-                    if away_traffic >= 4:
-                        score += 2
-
-                    if home_pitch >= 60:
+                    if total_runs <= 5:
                         score += 1
 
-                    if away_pitch >= 60:
+                    if abs(home_score - away_score) <= 3:
+                        score += 1
+
+                    if home_traffic >= 5:
+                        score += 2
+
+                    if away_traffic >= 5:
+                        score += 2
+
+                    if home_pitch >= 65:
+                        score += 1
+
+                    if away_pitch >= 65:
                         score += 1
 
                     if home_bullpen:
@@ -146,8 +144,8 @@ def main():
                     # 🔍 DEBUG
                     print(f"{away} vs {home} | inning {inning} | score {score}")
 
-                    # --- SIGNAL ---
-                    if score >= 5 and game_id not in sent_games:
+                    # 🚀 SIGNAL
+                    if score >= 6 and game_id not in sent_games:
                         send_telegram(
                             f"🔥 OVER SIGNAL (Score: {score})\n\n"
                             f"{away} vs {home}\n"
@@ -166,7 +164,7 @@ def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        time.sleep(120)  # ⏱️ kontrola každé 2 min
+        time.sleep(120)
 
 
 # --- START ---
