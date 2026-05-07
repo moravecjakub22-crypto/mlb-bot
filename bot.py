@@ -3,7 +3,7 @@ import threading
 import requests
 import time
 
-# --- FLASK ---
+# --- FLASK (aby Render běžel) ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -11,7 +11,7 @@ def home():
     return "Bot běží"
 
 
-# --- API KLÍČE ---
+# --- API ---
 TOKEN = "8756274427:AAF2Jtbdc9V06tni871RweFT0dRMae8KXdg"
 CHAT_ID = "5104285814"
 
@@ -37,16 +37,23 @@ def main():
         print("BOT JEDE")
 
         try:
-            schedule = requests.get(
-                "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
-                timeout=10
-            ).json()
+            # 🔥 můžeš dát konkrétní datum pro test:
+            # url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2026-05-02"
 
-            if not schedule["dates"]:
+            url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1"
+
+            schedule = requests.get(url, timeout=10).json()
+
+            print("DATES:", schedule.get("dates"))
+
+            if not schedule.get("dates"):
+                print("❌ Žádné zápasy")
                 time.sleep(180)
                 continue
 
             games = schedule["dates"][0]["games"]
+
+            print(f"📊 Počet zápasů: {len(games)}")
 
             for game in games:
                 game_id = game["gamePk"]
@@ -57,7 +64,7 @@ def main():
                 ).json()
 
                 try:
-                    # --- STATUS (jen live zápasy) ---
+                    # 👉 FILTR NA LIVE
                     status = live["gameData"]["status"]["abstractGameState"]
                     if status != "Live":
                         continue
@@ -66,10 +73,6 @@ def main():
                     boxscore = live["liveData"]["boxscore"]
 
                     inning = linescore["currentInning"]
-
-                    # ❗ TVRDÝ FILTR NA INNING
-                    if inning < 4 or inning > 6:
-                        continue
 
                     home = live["gameData"]["teams"]["home"]["name"]
                     away = live["gameData"]["teams"]["away"]["name"]
@@ -84,6 +87,9 @@ def main():
 
                     home_bb = boxscore["teams"]["home"]["teamStats"]["batting"]["baseOnBalls"]
                     away_bb = boxscore["teams"]["away"]["teamStats"]["batting"]["baseOnBalls"]
+
+                    home_lob = linescore["teams"]["home"]["leftOnBase"]
+                    away_lob = linescore["teams"]["away"]["leftOnBase"]
 
                     home_traffic = home_hits + home_bb
                     away_traffic = away_hits + away_bb
@@ -107,6 +113,9 @@ def main():
 
                     # --- SCORING ---
                     score = 0
+
+                    if 4 <= inning <= 6:
+                        score += 1
 
                     if total_runs <= 5:
                         score += 1
@@ -132,11 +141,11 @@ def main():
                     if away_bullpen:
                         score += 1
 
-                    # --- DEBUG ---
+                    # 👉 DEBUG (nejdůležitější)
                     print(f"{away} vs {home} | inning {inning} | score {score}")
 
                     # --- SIGNAL ---
-                    if score >= 5 and game_id not in sent_games:
+                    if score >= 4 and game_id not in sent_games:
                         send_telegram(
                             f"🔥 OVER SIGNAL (Score: {score})\n\n"
                             f"{away} vs {home}\n"
