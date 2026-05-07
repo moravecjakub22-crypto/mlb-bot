@@ -111,7 +111,7 @@ def main():
                     home_bullpen = len(home_pitchers) > 1
                     away_bullpen = len(away_pitchers) > 1
 
-                    # 🔥 SCORING (vylepšený)
+                    # 🔥 SCORING (sharp)
                     score = 0
 
                     if 5 <= inning <= 7:
@@ -144,8 +144,12 @@ def main():
                     # 🔍 DEBUG
                     print(f"{away} vs {home} | inning {inning} | score {score}")
 
-                    # 🚀 SIGNAL
-                    if score >= 6 and game_id not in sent_games:
+                    # 🚀 SHARP SIGNAL
+                    if (
+                        5 <= inning <= 7
+                        and score >= 6
+                        and game_id not in sent_games
+                    ):
                         send_telegram(
                             f"🔥 OVER SIGNAL (Score: {score})\n\n"
                             f"{away} vs {home}\n"
