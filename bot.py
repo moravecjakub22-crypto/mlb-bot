@@ -3,7 +3,7 @@ import threading
 import requests
 import time
 
-# --- FLASK (aby Render viděl port) ---
+# --- FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -42,12 +42,21 @@ def main():
                 timeout=10
             ).json()
 
-            if not schedule["dates"]:
-                print("Žádné zápasy dnes")
-                time.sleep(180)
+            # 🔍 DEBUG
+            print("DATES:", len(schedule.get("dates", [])))
+
+            if not schedule.get("dates"):
+                print("Žádné zápasy")
+                time.sleep(120)
                 continue
 
-            games = schedule["dates"][0]["games"]
+            # 🔥 vezmeme VŠECHNY zápasy
+            games = []
+            for date in schedule["dates"]:
+                for game in date["games"]:
+                    games.append(game)
+
+            print("NALEZENO ZÁPASŮ:", len(games))
 
             for game in games:
                 game_id = game["gamePk"]
@@ -61,7 +70,7 @@ def main():
                     status = live["gameData"]["status"]["abstractGameState"]
                     print("STATUS:", status)
 
-                    # 🔥 POVOLÍME LIVE + IN PROGRESS
+                    # 🔥 LIVE + IN PROGRESS
                     if status not in ["Live", "In Progress"]:
                         continue
 
@@ -87,18 +96,18 @@ def main():
                     home_traffic = home_hits + home_bb
                     away_traffic = away_hits + away_bb
 
-                    # --- PITCH COUNT ---
+                    # --- PITCH ---
                     home_pitchers = boxscore["teams"]["home"]["pitchers"]
                     away_pitchers = boxscore["teams"]["away"]["pitchers"]
 
-                    home_pitch_count = 0
-                    away_pitch_count = 0
+                    home_pitch = 0
+                    away_pitch = 0
 
                     if home_pitchers:
-                        home_pitch_count = boxscore["teams"]["home"]["players"][f"ID{home_pitchers[0]}"]["stats"]["pitching"]["pitchesThrown"]
+                        home_pitch = boxscore["teams"]["home"]["players"][f"ID{home_pitchers[0]}"]["stats"]["pitching"]["pitchesThrown"]
 
                     if away_pitchers:
-                        away_pitch_count = boxscore["teams"]["away"]["players"][f"ID{away_pitchers[0]}"]["stats"]["pitching"]["pitchesThrown"]
+                        away_pitch = boxscore["teams"]["away"]["players"][f"ID{away_pitchers[0]}"]["stats"]["pitching"]["pitchesThrown"]
 
                     # --- BULLPEN ---
                     home_bullpen = len(home_pitchers) > 1
@@ -122,10 +131,10 @@ def main():
                     if away_traffic >= 4:
                         score += 2
 
-                    if home_pitch_count >= 60:
+                    if home_pitch >= 60:
                         score += 1
 
-                    if away_pitch_count >= 60:
+                    if away_pitch >= 60:
                         score += 1
 
                     if home_bullpen:
@@ -145,7 +154,7 @@ def main():
                             f"Score: {away_score} - {home_score}\n"
                             f"Inning: {inning}\n\n"
                             f"Traffic: {away_traffic} - {home_traffic}\n"
-                            f"Pitch: {away_pitch_count} - {home_pitch_count}\n"
+                            f"Pitch: {away_pitch} - {home_pitch}\n"
                             f"Bullpen: YES\n"
                         )
 
@@ -157,7 +166,7 @@ def main():
         except Exception as e:
             print("ERROR LOOP:", e)
 
-        time.sleep(120)  # ⏱️ rychlejší test
+        time.sleep(120)  # ⏱️ kontrola každé 2 min
 
 
 # --- START ---
