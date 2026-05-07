@@ -3,6 +3,8 @@ import threading
 import requests
 import time
 
+print("NOVA VERZE BOTU")  # 👈 SEM TO DEJ
+
 # --- FLASK (aby Render běžel) ---
 app = Flask(__name__)
 
