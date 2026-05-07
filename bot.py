@@ -4,6 +4,12 @@ import requests
 import time
 
 # --- FLASK ---
+from flask import Flask
+import threading
+import requests
+import time
+
+# --- FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -111,7 +117,7 @@ def main():
                     home_bullpen = len(home_pitchers) > 1
                     away_bullpen = len(away_pitchers) > 1
 
-                    # 🔥 SCORING (sharp)
+                    # 🔥 SCORING (sharp mode)
                     score = 0
 
                     if 5 <= inning <= 7:
@@ -144,14 +150,19 @@ def main():
                     # 🔍 DEBUG
                     print(f"{away} vs {home} | inning {inning} | score {score}")
 
-                    # 🚀 SHARP SIGNAL
+                    # 🚀 SIGNAL
                     if (
                         5 <= inning <= 7
                         and score >= 6
                         and game_id not in sent_games
                     ):
+                        # 💎 LEVEL
+                        level = "🔥"
+                        if score >= 8:
+                            level = "💎"
+
                         send_telegram(
-                            f"🔥 OVER SIGNAL (Score: {score})\n\n"
+                            f"{level} OVER SIGNAL (Score: {score})\n\n"
                             f"{away} vs {home}\n"
                             f"Score: {away_score} - {home_score}\n"
                             f"Inning: {inning}\n\n"
