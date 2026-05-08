@@ -4,12 +4,6 @@ import requests
 import time
 
 # --- FLASK ---
-from flask import Flask
-import threading
-import requests
-import time
-
-# --- FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -40,41 +34,35 @@ def send_telegram(message):
 # --- HLAVNÍ BOT ---
 def main():
     while True:
-        print("BOT JEDE")
-
         try:
+            print("BOT JEDE")
+
             schedule = requests.get(
                 "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
                 timeout=10
             ).json()
 
-            print("DATES:", len(schedule.get("dates", [])))
-
             if not schedule.get("dates"):
-                print("Žádné zápasy")
                 time.sleep(120)
                 continue
 
-            # 🔥 všechny zápasy
             games = []
             for date in schedule["dates"]:
                 for game in date["games"]:
                     games.append(game)
 
-            print("NALEZENO ZÁPASŮ:", len(games))
-
             for game in games:
                 game_id = game["gamePk"]
 
-                live = requests.get(
-                    f"https://statsapi.mlb.com/api/v1.1/game/{game_id}/feed/live",
-                    timeout=10
-                ).json()
-
                 try:
-                    status = live["gameData"]["status"]["abstractGameState"]
-                    print("STATUS:", status)
+                    live = requests.get(
+                        f"https://statsapi.mlb.com/api/v1.1/game/{game_id}/feed/live",
+                        timeout=10
+                    ).json()
 
+                    status = live["gameData"]["status"]["abstractGameState"]
+
+                    # ✅ jen LIVE zápasy
                     if status not in ["Live", "In Progress"]:
                         continue
 
@@ -117,7 +105,7 @@ def main():
                     home_bullpen = len(home_pitchers) > 1
                     away_bullpen = len(away_pitchers) > 1
 
-                    # 🔥 SCORING (sharp mode)
+                    # --- SCORING (sharp mode) ---
                     score = 0
 
                     if 5 <= inning <= 7:
@@ -156,7 +144,6 @@ def main():
                         and score >= 6
                         and game_id not in sent_games
                     ):
-                        # 💎 LEVEL
                         level = "🔥"
                         if score >= 8:
                             level = "💎"
@@ -177,11 +164,13 @@ def main():
                     print("ERROR GAME:", e)
 
         except Exception as e:
-            print("ERROR LOOP:", e)
+            print("CRASH LOOP:", e)
+            time.sleep(5)
 
         time.sleep(120)
 
 
 # --- START ---
-threading.Thread(target=main).start()
-app.run(host="0.0.0.0", port=10000)
+if __name__ == "__main__":
+    threading.Thread(target=main, daemon=True).start()
+    app.run(host="0.0.0.0", port=10000)
