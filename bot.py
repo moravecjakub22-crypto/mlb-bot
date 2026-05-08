@@ -3,22 +3,23 @@ import threading
 import requests
 import time
 
-# --- FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot běží"
+    return "BOT běží"
 
 
-# --- API KLÍČE ---
+# --- API ---
 TOKEN = "8756274427:AAF2Jtbdc9V06tni871RweFT0dRMae8KXdg"
 CHAT_ID = "5104285814"
+ODDS_API_KEY = "7af756cdb9d6a15a834fa754bdefb245"
 
 sent_games = set()
+odds_data = []
+last_odds_update = 0
 
 
-# --- TELEGRAM ---
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {
@@ -31,12 +32,26 @@ def send_telegram(message):
         print("TELEGRAM ERROR:", e)
 
 
-# --- HLAVNÍ BOT ---
-def main():
-    while True:
-        try:
-            print("BOT JEDE")
+# --- MIN ODDS ---
+def get_min_odds(score):
+    if score >= 9:
+        return 1.6
+    if score == 8:
+        return 1.7
+    if score == 7:
+        return 1.8
+    if score == 6:
+        return 1.9
+    return None
 
+
+def main():
+    global odds_data, last_odds_update
+
+    while True:
+        print("BOT JEDE")
+
+        try:
             schedule = requests.get(
                 "https://statsapi.mlb.com/api/v1/schedule?sportId=1",
                 timeout=10
@@ -46,10 +61,7 @@ def main():
                 time.sleep(120)
                 continue
 
-            games = []
-            for date in schedule["dates"]:
-                for game in date["games"]:
-                    games.append(game)
+            games = schedule["dates"][0]["games"]
 
             for game in games:
                 game_id = game["gamePk"]
@@ -60,23 +72,23 @@ def main():
                         timeout=10
                     ).json()
 
-                    status = live["gameData"]["status"]["abstractGameState"]
-
-                    # ✅ jen LIVE zápasy
-                    if status not in ["Live", "In Progress"]:
-                        continue
-
                     linescore = live["liveData"]["linescore"]
                     boxscore = live["liveData"]["boxscore"]
 
-                    inning = linescore.get("currentInning", 0)
+                    if not linescore or "currentInning" not in linescore:
+                        continue
+
+                    inning = linescore["currentInning"]
+
+                    # 👉 jen mid game
+                    if inning < 5 or inning > 7:
+                        continue
 
                     home = live["gameData"]["teams"]["home"]["name"]
                     away = live["gameData"]["teams"]["away"]["name"]
 
                     home_score = linescore["teams"]["home"]["runs"]
                     away_score = linescore["teams"]["away"]["runs"]
-
                     total_runs = home_score + away_score
 
                     home_hits = linescore["teams"]["home"]["hits"]
@@ -88,7 +100,6 @@ def main():
                     home_traffic = home_hits + home_bb
                     away_traffic = away_hits + away_bb
 
-                    # --- PITCH ---
                     home_pitchers = boxscore["teams"]["home"]["pitchers"]
                     away_pitchers = boxscore["teams"]["away"]["pitchers"]
 
@@ -101,17 +112,13 @@ def main():
                     if away_pitchers:
                         away_pitch = boxscore["teams"]["away"]["players"][f"ID{away_pitchers[0]}"]["stats"]["pitching"]["pitchesThrown"]
 
-                    # --- BULLPEN ---
                     home_bullpen = len(home_pitchers) > 1
                     away_bullpen = len(away_pitchers) > 1
 
-                    # --- SCORING (sharp mode) ---
+                    # --- SCORING ---
                     score = 0
 
-                    if 5 <= inning <= 7:
-                        score += 2
-
-                    if total_runs <= 5:
+                    if total_runs <= 6:
                         score += 1
 
                     if abs(home_score - away_score) <= 3:
@@ -123,10 +130,10 @@ def main():
                     if away_traffic >= 5:
                         score += 2
 
-                    if home_pitch >= 65:
+                    if home_pitch >= 60:
                         score += 1
 
-                    if away_pitch >= 65:
+                    if away_pitch >= 60:
                         score += 1
 
                     if home_bullpen:
@@ -135,27 +142,78 @@ def main():
                     if away_bullpen:
                         score += 1
 
-                    # 🔍 DEBUG
-                    print(f"{away} vs {home} | inning {inning} | score {score}")
+                    print(f"{home} vs {away} | inning {inning} | score {score}")
 
-                    # 🚀 SIGNAL
-                    if (
-                        5 <= inning <= 7
-                        and score >= 6
-                        and game_id not in sent_games
-                    ):
-                        level = "🔥"
-                        if score >= 8:
-                            level = "💎"
+                    # 👉 jen silné situace
+                    if score < 6:
+                        continue
+
+                    # 🔄 ODDS update každých 30 min
+                    if time.time() - last_odds_update > 1800:
+                        print("Aktualizuji odds...")
+                        try:
+                            odds_data = requests.get(
+                                f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey={ODDS_API_KEY}&regions=eu&markets=totals",
+                                timeout=10
+                            ).json()
+                        except:
+                            odds_data = []
+
+                        last_odds_update = time.time()
+
+                    # 🔎 NAJDI ODDS
+                    best_odds = None
+                    best_line = None
+
+                    for match in odds_data:
+                        if home in match.get("home_team", "") or away in match.get("away_team", ""):
+                            for bookmaker in match.get("bookmakers", []):
+                                for market in bookmaker.get("markets", []):
+                                    if market.get("key") == "totals":
+                                        for outcome in market.get("outcomes", []):
+                                            if outcome.get("name") == "Over":
+                                                odds = outcome.get("price")
+                                                line = outcome.get("point")
+
+                                                if odds:
+                                                    if best_odds is None or odds > best_odds:
+                                                        best_odds = odds
+                                                        best_line = line
+
+                    min_odds = get_min_odds(score)
+
+                    print(f"ODDS: {best_odds} | MIN: {min_odds}")
+
+                    # 🚀 VALUE + FALLBACK LOGIKA
+                    if game_id not in sent_games:
+
+                        # 💰 VALUE MODE
+                        if best_odds and min_odds:
+                            if best_odds >= min_odds:
+                                mode = "💰 VALUE"
+                            else:
+                                continue
+
+                        # ⚡ NO ODDS MODE
+                        else:
+                            if score < 8:
+                                continue
+                            mode = "⚡ NO ODDS"
+
+                        level = "💎" if score >= 8 else "🔥"
 
                         send_telegram(
-                            f"{level} OVER SIGNAL (Score: {score})\n\n"
-                            f"{away} vs {home}\n"
-                            f"Score: {away_score} - {home_score}\n"
+                            f"{mode} {level} OVER\n\n"
+                            f"{home} vs {away}\n"
+                            f"Score: {home_score}-{away_score}\n"
                             f"Inning: {inning}\n\n"
-                            f"Traffic: {away_traffic} - {home_traffic}\n"
-                            f"Pitch: {away_pitch} - {home_pitch}\n"
-                            f"Bullpen: YES\n"
+                            f"Bot Score: {score}\n"
+                            f"Line: {best_line if best_line else 'N/A'}\n"
+                            f"Odds: {best_odds if best_odds else 'N/A'}\n"
+                            f"Min Odds: {min_odds if min_odds else 'N/A'}\n\n"
+                            f"Traffic: {home_traffic}-{away_traffic}\n"
+                            f"Pitch: {home_pitch}-{away_pitch}\n"
+                            f"Bullpen: YES"
                         )
 
                         sent_games.add(game_id)
@@ -164,13 +222,11 @@ def main():
                     print("ERROR GAME:", e)
 
         except Exception as e:
-            print("CRASH LOOP:", e)
-            time.sleep(5)
+            print("ERROR LOOP:", e)
 
         time.sleep(120)
 
 
 # --- START ---
-if __name__ == "__main__":
-    threading.Thread(target=main, daemon=True).start()
-    app.run(host="0.0.0.0", port=10000)
+threading.Thread(target=main, daemon=True).start()
+app.run(host="0.0.0.0", port=10000)
