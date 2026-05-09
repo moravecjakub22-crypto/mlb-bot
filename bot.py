@@ -145,7 +145,7 @@ def main():
                     print(f"{home} vs {away} | inning {inning} | score {score}")
 
                     # 👉 jen silné situace
-                    if score < 6:
+                    if score < 7:
                         continue
 
                     # 🔄 ODDS update každých 30 min
