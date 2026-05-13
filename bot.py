@@ -189,7 +189,7 @@ def main():
 
                         # 💰 VALUE MODE
                         if best_odds and min_odds:
-                            if best_odds >= min_odds:
+                            if best_odds >= min_odds and best_odds <= 3:
                                 mode = "💰 VALUE"
                             else:
                                 continue
