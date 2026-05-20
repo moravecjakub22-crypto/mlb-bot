@@ -29,6 +29,7 @@ last_odds_update = 0
 # =========================
 
 def send_telegram(message):
+
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     data = {
@@ -82,6 +83,8 @@ def main():
             ).json()
 
             if not schedule.get("dates"):
+
+                print("Žádné zápasy")
                 time.sleep(120)
                 continue
 
@@ -173,6 +176,7 @@ def main():
                     try:
 
                         if home_pitchers:
+
                             home_pitch = (
                                 boxscore["teams"]["home"]["players"][f"ID{home_pitchers[0]}"]
                                 .get("stats", {})
@@ -181,6 +185,7 @@ def main():
                             )
 
                         if away_pitchers:
+
                             away_pitch = (
                                 boxscore["teams"]["away"]["players"][f"ID{away_pitchers[0]}"]
                                 .get("stats", {})
@@ -188,7 +193,10 @@ def main():
                                 .get("pitchesThrown", 0)
                             )
 
-                    except:
+                    except Exception as e:
+
+                        print("PITCH ERROR:", e)
+
                         home_pitch = 0
                         away_pitch = 0
 
@@ -237,7 +245,7 @@ def main():
                     print(
                         f"{home} vs {away} | "
                         f"Inning {inning} | "
-                        f"Score {score}"
+                        f"Bot Score {score}"
                     )
 
                     # =========================
@@ -248,7 +256,7 @@ def main():
                         continue
 
                     # =========================
-                    # ODDS UPDATE
+                    # UPDATE ODDS
                     # =========================
 
                     if time.time() - last_odds_update > 1800:
@@ -261,6 +269,8 @@ def main():
                                 f"https://api.the-odds-api.com/v4/sports/baseball_mlb/odds/?apiKey={ODDS_API_KEY}&regions=eu&markets=totals",
                                 timeout=15
                             ).json()
+
+                            print("Odds aktualizovány")
 
                         except Exception as e:
 
@@ -296,20 +306,22 @@ def main():
                                                 odds = outcome.get("price")
                                                 line = outcome.get("point")
 
-                                                if odds:
+                                                if odds and line:
 
                                                     if (
                                                         best_odds is None
                                                         or odds > best_odds
                                                     ):
+
                                                         best_odds = odds
                                                         best_line = line
 
                     min_odds = get_min_odds(score)
 
                     print(
-                        f"ODDS: {best_odds} | "
-                        f"MIN: {min_odds}"
+                        f"ODDS {best_odds} | "
+                        f"LINE {best_line} | "
+                        f"MIN {min_odds}"
                     )
 
                     # =========================
@@ -318,11 +330,12 @@ def main():
 
                     if game_id not in sent_games:
 
-                        if best_odds and min_odds:
+                        if best_odds and min_odds and best_line:
 
                             if (
                                 best_odds >= min_odds
                                 and best_odds <= 3
+                                and best_line > total_runs
                             ):
 
                                 mode = "💰 VALUE"
